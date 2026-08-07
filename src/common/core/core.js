@@ -122,6 +122,7 @@ define([
     'common/core/metacore',
     'common/core/coretreeloader',
     'common/core/corediff',
+    'common/core/corehostedpointers',
     'common/core/metacachecore',
     'common/core/mixincore',
     'common/core/metaquerycore',
@@ -141,6 +142,7 @@ define([
              MetaCore,
              TreeLoader,
              CoreDiff,
+             CoreHostedPointers,
              MetaCacheCore,
              MixinCore,
              MetaQueryCore,
@@ -353,7 +355,9 @@ define([
      */
     function Core(project, options) {
         var core,
-            coreLayers = [];
+            coreLayers = [],
+            mergeHostedPointers = options && options.mergeHostedPointers === true;
+
         coreLayers.push(CoreRel);
         coreLayers.push(NullPtr);
         coreLayers.push(Type);
@@ -365,7 +369,12 @@ define([
         coreLayers.push(MetaCacheCore);
         coreLayers.push(MixinCore);
         coreLayers.push(MetaQueryCore);
-        coreLayers.push(CoreDiff);
+        // Stock Core keeps DiffCore; MergeCore replaces it with hosted-pointers only.
+        if (mergeHostedPointers) {
+            coreLayers.push(CoreHostedPointers);
+        } else {
+            coreLayers.push(CoreDiff);
+        }
 
         coreLayers.push(TreeLoader);
 
@@ -3253,97 +3262,115 @@ define([
             return core.isInstanceOf(node, baseNodeOrPath);
         };
 
-        /**
-         * Generates a differential tree among the two states of the project that contains the necessary changes
-         * that can modify the source to be identical to the target. The result is in form of a json object.
-         * @param {module:Core~Node} sourceRoot - the root node of the source state.
-         * @param {module:Core~Node} targetRoot - the root node of the target state.
-         * @param {function} [callback]
-         * @param {Error|CoreIllegalArgumentError|CoreInternalError|null} callback.error - the status of the exectuion.
-         * @param {object} callback.treeDiff - the difference between the two containment hierarchies in
-         * a special JSON object
-         *
-         * @return {external:Promise} if the callback is not defined, the result is provided in a promise
-         * like manner.
-         *
-         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
-         */
-        this.generateTreeDiff = function (sourceRoot, targetRoot, callback) {
-            var error;
+        if (mergeHostedPointers) {
+            /**
+             * Pointer edges hosted on this node's overlay (may target deep
+             * descendants), keyed by absolute source path then pointer name —
+             * same nesting as raw overlay, absolute paths. Sync; node must
+             * already be loaded. Empty host → {}.
+             * Value null = deliberate nullptr; absent name = not defined here.
+             * @param {module:Core~Node} node
+             * @return {Object.<string, Object.<string, string|null>>}
+             */
+            this.getHostedPointers = function (node) {
+                ensureNode(node, 'node');
+                return core.getHostedPointers(node);
+            };
+        } else {
+            /**
+             * Calculates a delta in JSON form for the project subtree under
+             * sourceRoot/targetRoot.
+             * @param {module:Core~Node} sourceRoot - the root node of the source state.
+             * @param {module:Core~Node} targetRoot - the root node of the target state.
+             * @param {function} [callback]
+             * @param {Error|CoreIllegalArgumentError|CoreInternalError|null} callback.error - the status of the
+             * execution.
+             * @param {object} callback.treeDiff - the difference between the two containment hierarchies in
+             * a special JSON object
+             *
+             * @return {external:Promise} if the callback is not defined, the result is provided in a promise
+             * like manner.
+             *
+             * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+             */
+            this.generateTreeDiff = function (sourceRoot, targetRoot, callback) {
+                var error;
 
-            ensureType(callback, 'callback', 'function');
-            error = ensureNode(sourceRoot, 'sourceRoot', true);
-            error = error || ensureNode(targetRoot, 'targetRoot', true);
-            if (error) {
-                callback(error);
-            } else {
-                core.generateTreeDiff(sourceRoot, targetRoot, callback);
-            }
-        };
+                ensureType(callback, 'callback', 'function');
+                error = ensureNode(sourceRoot, 'sourceRoot', true);
+                error = error || ensureNode(targetRoot, 'targetRoot', true);
+                if (error) {
+                    callback(error);
+                } else {
+                    core.generateTreeDiff(sourceRoot, targetRoot, callback);
+                }
+            };
 
-        /**
-         * Apply changes to the current project.
-         * @param {module:Core~Node} node - the root of the containment hierarchy where we wish to apply the changes
-         * @param {object} patch - the tree structured collection of changes represented with a special JSON object
-         * @param {function} [callback]
-         * @param {Error|CoreIllegalArgumentError|CoreInternalError|null} callback.error - the result of the execution.
-         *
-         * @return {external:Promise} If no callback is given, the result will be provided in a promise.
-         *
-         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
-         */
-        this.applyTreeDiff = function (node, patch, callback) {
-            var error;
+            /**
+             * Apply changes to the current project.
+             * @param {module:Core~Node} node - the root of the containment hierarchy where we wish to apply the changes
+             * @param {object} patch - the tree structured collection of changes represented with a special JSON object
+             * @param {function} [callback]
+             * @param {Error|CoreIllegalArgumentError|CoreInternalError|null} callback.error - the result of the
+             * execution.
+             *
+             * @return {external:Promise} If no callback is given, the result will be provided in a promise.
+             *
+             * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+             */
+            this.applyTreeDiff = function (node, patch, callback) {
+                var error;
 
-            ensureType(callback, 'callback', 'function');
-            error = ensureNode(node, 'node', true);
-            error = error || ensureType(patch, 'patch', 'object', true);
-            if (error) {
-                callback(error);
-            } else {
-                core.applyTreeDiff(node, patch, callback);
-            }
-        };
+                ensureType(callback, 'callback', 'function');
+                error = ensureNode(node, 'node', true);
+                error = error || ensureType(patch, 'patch', 'object', true);
+                if (error) {
+                    callback(error);
+                } else {
+                    core.applyTreeDiff(node, patch, callback);
+                }
+            };
 
-        /**
-         * Tries to merge two patch object. The patches ideally represents changes made by two parties. They represents
-         * changes from the same source ending in different states. Our aim is to generate a single patch that could
-         * cover the changes of both party.
-         * @param {object} mine - the tree structured JSON patch that represents my changes.
-         * @param {object} theirs - the tree structured JSON patch that represents the changes of the other party.
-         *
-         * @return {object} The function returns with an object that contains the conflicts (if any) and the merged
-         * patch.
-         *
-         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
-         * @throws {CoreInternalError} If some internal error took place inside the core layers.
-         */
-        this.tryToConcatChanges = function (mine, theirs) {
-            ensureType(mine, 'mine', 'object');
-            ensureType(theirs, 'theirs', 'object');
+            /**
+             * Tries to merge two patch object. The patches ideally represents changes made by two parties. They
+             * represents changes from the same source ending in different states. Our aim is to generate a single
+             * patch that could cover the changes of both party.
+             * @param {object} mine - the tree structured JSON patch that represents my changes.
+             * @param {object} theirs - the tree structured JSON patch that represents the changes of the other party.
+             *
+             * @return {object} The function returns with an object that contains the conflicts (if any) and the merged
+             * patch.
+             *
+             * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+             * @throws {CoreInternalError} If some internal error took place inside the core layers.
+             */
+            this.tryToConcatChanges = function (mine, theirs) {
+                ensureType(mine, 'mine', 'object');
+                ensureType(theirs, 'theirs', 'object');
 
-            return core.tryToConcatChanges(mine, theirs);
-        };
+                return core.tryToConcatChanges(mine, theirs);
+            };
 
-        /**
-         * When our attempt to merge two patches ended in some conflict, then we can modify that result highlighting
-         * that in case of every conflict, which side we prefer (mine vs. theirs). If we give that object as an input
-         * to this function, it will finish the merge resolving the conflict according our settings and present a final
-         * patch.
-         * @param {object} conflict - the object that represents our settings for every conflict and the so-far-merged
-         * patch.
-         *
-         * @return {object} The function results in a tree structured patch object that contains the changesthat cover
-         * both parties modifications (and the conflicts are resolved according the input settings).
-         *
-         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
-         * @throws {CoreInternalError} If some internal error took place inside the core layers.
-         */
-        this.applyResolution = function (conflict) {
-            ensureType(conflict, 'conflict', 'object');
+            /**
+             * When our attempt to merge two patches ended in some conflict, then we can modify that result
+             * highlighting that in case of every conflict, which side we prefer (mine vs. theirs). If we give that
+             * object as an input to this function, it will finish the merge resolving the conflict according our
+             * settings and present a final patch.
+             * @param {object} conflict - the object that represents our settings for every conflict and the
+             * so-far-merged patch.
+             *
+             * @return {object} The function results in a tree structured patch object that contains the changes
+             * that cover both parties modifications (and the conflicts are resolved according the input settings).
+             *
+             * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+             * @throws {CoreInternalError} If some internal error took place inside the core layers.
+             */
+            this.applyResolution = function (conflict) {
+                ensureType(conflict, 'conflict', 'object');
 
-            return core.applyResolution(conflict);
-        };
+                return core.applyResolution(conflict);
+            };
+        }
 
         /**
          * Checks if the node is abstract.
