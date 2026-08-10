@@ -3276,6 +3276,29 @@ define([
                 ensureNode(node, 'node');
                 return core.getHostedPointers(node);
             };
+
+            /**
+             * Attach a persisted content hash as a child (DiffCore-style graft).
+             * MergeCore only — not on stock Core. Prefer over createNode for apply-of-create.
+             *
+             * Overlay edges for the new subtree that live on the parent…root chain
+             * (not inside the blob) are passed as absolute `{name, from, to}` and
+             * inserted before the hash graft. Nullptr overlays stay in contentHash.
+             *
+             * @param {module:Core~Node} parent
+             * @param {string} relid
+             * @param {string} contentHash
+             * @param {Array<{name: string, from: string, to: string}>} [pointers]
+             */
+            this.attachChild = function (parent, relid, contentHash, pointers) {
+                ensureNode(parent, 'parent');
+                ensureType(relid, 'relid', 'string');
+                ensureType(contentHash, 'contentHash', 'string');
+                if (pointers !== undefined && pointers !== null && !Array.isArray(pointers)) {
+                    throw new CoreIllegalArgumentError('Parameter \'pointers\' is not of type array.');
+                }
+                return core.attachChild(parent, relid, contentHash, pointers);
+            };
         } else {
             /**
              * Calculates a delta in JSON form for the project subtree under

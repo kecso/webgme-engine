@@ -3,7 +3,7 @@
 
 /**
  * Thin Core layer that replaces DiffCore for the merge / external-diff engine.
- * Exposes getHostedPointers only — no generateTreeDiff / concat / apply.
+ * Exposes getHostedPointers + attachChild — no generateTreeDiff / concat / apply.
  *
  * @author kecso / https://github.com/kecso
  */
@@ -13,6 +13,29 @@ define([
     'common/core/constants'
 ], function (ASSERT, CONSTANTS) {
     'use strict';
+
+    /**
+     * Longest common absolute path prefix ('' for root). Same idea as DiffCore.
+     * @param {string} onePath
+     * @param {string} otherPath
+     * @returns {string}
+     */
+    function getAncestorPath(onePath, otherPath) {
+        var ancestorPath = '',
+            onePathArray = (onePath || '').split('/'),
+            otherPathArray = (otherPath || '').split('/'),
+            i = 0;
+
+        onePathArray.shift();
+        otherPathArray.shift();
+        if (onePathArray.length > 0 && otherPathArray.length > 0) {
+            while (i < onePathArray.length && onePathArray[i] === otherPathArray[i]) {
+                ancestorPath += '/' + onePathArray[i];
+                i += 1;
+            }
+        }
+        return ancestorPath;
+    }
 
     /**
      * @param {object} innerCore
@@ -118,6 +141,94 @@ define([
             }
 
             return result;
+        };
+
+        /**
+         * Walk parent → … → root to the node whose path equals hostPath.
+         * Overlay hosts for a graft sit on this chain (never below the parent).
+         * @param {object} parent
+         * @param {string} hostPath
+         * @returns {object}
+         */
+        function hostNodeOnParentChain(parent, hostPath) {
+            var node = parent,
+                path;
+
+            while (node) {
+                path = self.getPath(node);
+                if (path === hostPath) {
+                    return node;
+                }
+                node = self.getParent(node);
+            }
+
+            throw new Error('attachChild: overlay host [' + hostPath +
+                '] is not on the parent containment chain');
+        }
+
+        /**
+         * Insert one absolute pointer into the correct ancestor overlay.
+         * Nullptr edges are not accepted — they live on the source node and
+         * arrive via contentHash.
+         * @param {object} parent - attach parent (entry to the container chain)
+         * @param {{name: string, from: string, to: string}} pointer
+         */
+        function insertPointerOnChain(parent, pointer) {
+            var fromPath,
+                toPath,
+                hostPath,
+                host,
+                sourceRel,
+                targetRel;
+
+            ASSERT(pointer && typeof pointer.name === 'string');
+            ASSERT(typeof pointer.from === 'string');
+            ASSERT(typeof pointer.to === 'string');
+
+            fromPath = pointer.from;
+            toPath = pointer.to;
+            hostPath = getAncestorPath(fromPath, toPath);
+            host = hostNodeOnParentChain(parent, hostPath);
+            sourceRel = fromPath.substring(hostPath.length);
+            targetRel = toPath.substring(hostPath.length);
+
+            self.overlayInsert(host, sourceRel, pointer.name, targetRel);
+        }
+
+        /**
+         * Attach an already-persisted content object as child `relid` under
+         * parent (DiffCore-style hash graft). Does not createNode.
+         *
+         * Overlay edges that live on the parent…root chain for the new subtree
+         * (not inside the content blob) must be supplied as absolute pointers and
+         * are inserted **before** the hash graft so loadChild sees a valid base.
+         * Nullptr overlays stay inside contentHash (hosted on the source node).
+         *
+         * @param {object} parent - loaded parent node
+         * @param {string} relid - child relid
+         * @param {string} contentHash - storage hash of the child object
+         * @param {Array<{name: string, from: string, to: string}>} [pointers]
+         *   Absolute path edges to place on the container chain (e.g. base → FCO).
+         */
+        this.attachChild = function (parent, relid, contentHash, pointers) {
+            var i;
+
+            ASSERT(self.isValidNode(parent));
+            ASSERT(typeof relid === 'string' && relid.length > 0);
+            ASSERT(typeof contentHash === 'string' && contentHash.length > 0);
+            ASSERT(pointers === undefined || pointers === null || Array.isArray(pointers));
+
+            if (pointers && pointers.length) {
+                for (i = 0; i < pointers.length; i += 1) {
+                    insertPointerOnChain(parent, pointers[i]);
+                }
+            }
+
+            self.setProperty(parent, relid, contentHash);
+            // Invalidate both CoreRel and CoreType children caches so loadChild
+            // sees the grafted relid (CoreType.loadChild gates on allChildrenRelids).
+            parent.childrenRelids = null;
+            parent.allChildrenRelids = null;
         };
     }
 

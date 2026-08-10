@@ -31,10 +31,21 @@ describe('mergecore / getHostedPointers', function () {
             })
             .then(function (dbProject) {
                 // CoreTree expects ProjectInterface-shaped storage; MemoryProject
-                // is the raw adapter and omits these.
+                // is the raw adapter. CoreTree.persist calls
+                // insertObject(data, stackedObjects) — not (data, callback).
+                var rawInsert = dbProject.insertObject.bind(dbProject);
                 dbProject.ID_NAME = CONSTANTS.MONGO_ID;
                 dbProject.loadPaths = function (rootHash, paths, callback) {
                     callback(null, {});
+                };
+                dbProject.insertObject = function (obj, stackedOrCb) {
+                    if (typeof stackedOrCb === 'function') {
+                        return rawInsert(obj, stackedOrCb);
+                    }
+                    if (stackedOrCb && typeof stackedOrCb === 'object') {
+                        return;
+                    }
+                    return rawInsert(obj);
                 };
                 project = dbProject;
                 mergeCore = new MergeCore(project, {
@@ -175,5 +186,69 @@ describe('mergecore / getHostedPointers', function () {
             expect(Object.prototype.hasOwnProperty.call(hosted[sourcePath], 'ref')).to.equal(false);
         }
         expect(mergeCore.getPointerPath(source, 'ref')).to.equal(undefined);
+    });
+
+    it('attachChild should graft a persisted hash onto the parent', function () {
+        var root = mergeCore.createNode({}),
+            donorParent = mergeCore.createNode({parent: root, relid: 'd'}),
+            child = mergeCore.createNode({parent: donorParent, relid: 'x'}),
+            sink = mergeCore.createNode({parent: root, relid: 's'}),
+            persisted,
+            hash;
+
+        mergeCore.setAttribute(child, 'name', 'grafted');
+        persisted = mergeCore.persist(root);
+        hash = mergeCore.getHash(child);
+        expect(hash).to.be.a('string');
+        expect(hash.length).to.be.above(0);
+        expect(persisted.objects).to.be.an('object');
+
+        expect(typeof mergeCore.attachChild).to.equal('function');
+        expect(mergeCore.overlayInsert).to.equal(undefined);
+        mergeCore.attachChild(sink, 'y', hash);
+        expect(mergeCore.getChildrenRelids(sink)).to.include('y');
+        expect(mergeCore.getChildrenHashes(sink).y).to.equal(hash);
+    });
+
+    it('attachChild should overlay-insert absolute pointers before grafting', function (done) {
+        var root = mergeCore.createNode({}),
+            fco = mergeCore.createNode({parent: root, relid: '1'}),
+            child = mergeCore.createNode({parent: root, base: fco, relid: 'c'}),
+            sink,
+            persisted,
+            hash,
+            Q = testFixture.Q,
+            chain = Q(),
+            keys,
+            i;
+
+        mergeCore.setAttribute(fco, 'name', 'FCO');
+        mergeCore.setAttribute(child, 'name', 'grafted');
+        persisted = mergeCore.persist(root);
+        hash = mergeCore.getHash(child);
+        keys = Object.keys(persisted.objects || {});
+        for (i = 0; i < keys.length; i += 1) {
+            (function (entry) {
+                var data = entry && entry.newData ? entry.newData : entry;
+                chain = chain.then(function () {
+                    return Q(project.insertObject(data));
+                });
+            }(persisted.objects[keys[i]]));
+        }
+
+        chain
+            .then(function () {
+                sink = mergeCore.createNode({parent: root, relid: 's'});
+                mergeCore.attachChild(sink, 'y', hash, [
+                    {name: 'base', from: '/s/y', to: '/1'}
+                ]);
+                return Q.ninvoke(mergeCore, 'loadChild', sink, 'y');
+            })
+            .then(function (grafted) {
+                expect(grafted).to.not.equal(null);
+                expect(mergeCore.getPointerPath(grafted, 'base')).to.equal('/1');
+                expect(mergeCore.getPath(mergeCore.getBase(grafted))).to.equal('/1');
+            })
+            .nodeify(done);
     });
 });

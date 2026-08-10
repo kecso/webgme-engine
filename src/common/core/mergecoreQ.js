@@ -40,6 +40,7 @@ define(['common/core/mergecore', 'q'], function (MergeCore, Q) {
         this.loadOwnChildren = promisify(this.loadOwnChildren);
         this.loadPointer = promisify(this.loadPointer);
         this.loadPaths = promisify(this.loadPaths);
+        this.setGuid = promisify(this.setGuid);
     }
 
     function createMergeCore(project, options) {
