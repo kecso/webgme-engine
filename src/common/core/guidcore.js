@@ -129,10 +129,10 @@ define([
             return node;
         };
 
-        this.moveNode = function (node, parent) {
+        this.moveNode = function (node, parent, relidLength, newRelid) {
             var oldGuid = self.getGuid(node);
 
-            node = innerCore.moveNode(node, parent);
+            node = innerCore.moveNode(node, parent, relidLength, newRelid);
 
             setDataGuid(node, oldGuid);
 

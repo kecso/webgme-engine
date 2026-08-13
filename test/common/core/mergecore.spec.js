@@ -251,4 +251,18 @@ describe('mergecore / getHostedPointers', function () {
             })
             .nodeify(done);
     });
+
+    it('moveChild should move under a new parent at an explicit relid', function () {
+        var root = mergeCore.createNode({}),
+            fco = mergeCore.createNode({parent: root, relid: '1'}),
+            a = mergeCore.createNode({parent: root, base: fco, relid: 'a'}),
+            b = mergeCore.createNode({parent: root, base: fco, relid: 'b'}),
+            n = mergeCore.createNode({parent: a, base: fco, relid: 'n'}),
+            moved;
+
+        expect(typeof mergeCore.moveChild).to.equal('function');
+        moved = mergeCore.moveChild(n, b, 'z');
+        expect(mergeCore.getPath(moved)).to.equal('/b/z');
+        expect(mergeCore.getRelid(moved)).to.equal('z');
+    });
 });

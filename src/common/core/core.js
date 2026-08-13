@@ -3299,6 +3299,20 @@ define([
                 }
                 return core.attachChild(parent, relid, contentHash, pointers);
             };
+
+            /**
+             * Move a node under a new parent at an explicit relid (MergeCore only).
+             * @param {module:Core~Node} node
+             * @param {module:Core~Node} parent
+             * @param {string} newRelid
+             * @return {module:Core~Node}
+             */
+            this.moveChild = function (node, parent, newRelid) {
+                ensureNode(node, 'node');
+                ensureNode(parent, 'parent');
+                ensureType(newRelid, 'newRelid', 'string');
+                return core.moveChild(node, parent, newRelid);
+            };
         } else {
             /**
              * Calculates a delta in JSON form for the project subtree under

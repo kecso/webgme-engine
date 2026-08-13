@@ -538,7 +538,7 @@ define([
             return innerCore.copyNodes(nodes, parent);
         };
 
-        this.moveNode = function (node, parent) {
+        this.moveNode = function (node, parent, relidLength, newRelid) {
             if (self.isLibraryRoot(parent) || self.isLibraryElement(parent)) {
                 throw new CoreIllegalOperationError('Not allowed to add nodes inside a library.');
             }
@@ -547,7 +547,7 @@ define([
                 throw new CoreIllegalOperationError('Not allowed to move library elements.');
             }
 
-            return innerCore.moveNode(node, parent);
+            return innerCore.moveNode(node, parent, relidLength, newRelid);
         };
 
         this.setAttribute = function (node, name, value) {

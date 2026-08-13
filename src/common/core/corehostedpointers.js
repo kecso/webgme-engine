@@ -3,7 +3,7 @@
 
 /**
  * Thin Core layer that replaces DiffCore for the merge / external-diff engine.
- * Exposes getHostedPointers + attachChild — no generateTreeDiff / concat / apply.
+ * Exposes getHostedPointers + attachChild + moveChild — no generateTreeDiff / concat / apply.
  *
  * @author kecso / https://github.com/kecso
  */
@@ -229,6 +229,22 @@ define([
             // sees the grafted relid (CoreType.loadChild gates on allChildrenRelids).
             parent.childrenRelids = null;
             parent.allChildrenRelids = null;
+        };
+
+        /**
+         * Move `node` under `parent` at an explicit `newRelid` (MergeCore only).
+         * Public Core.moveNode(node, parent) does not accept a new relid.
+         *
+         * @param {object} node
+         * @param {object} parent
+         * @param {string} newRelid
+         * @returns {object} moved node
+         */
+        this.moveChild = function (node, parent, newRelid) {
+            ASSERT(self.isValidNode(node));
+            ASSERT(self.isValidNode(parent));
+            ASSERT(typeof newRelid === 'string' && newRelid.length > 0);
+            return self.moveNode(node, parent, undefined, newRelid);
         };
     }
 
