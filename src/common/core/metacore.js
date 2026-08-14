@@ -525,6 +525,44 @@ define([
             return self.getAttribute(getMetaNode(node), name);
         };
 
+        /**
+         * Own (authored-on-this-node) relation rule: total min/max from own attributes
+         * on the meta overlay, plus own member types. Inherited values are omitted.
+         * Returns null when this node defined nothing.
+         */
+        function ownRelationRule(metaNode) {
+            var rule = {},
+                ownNames,
+                paths,
+                i,
+                has = false;
+
+            if (!metaNode) {
+                return null;
+            }
+
+            ownNames = self.getOwnAttributeNames(metaNode);
+            if (ownNames.indexOf(CONSTANTS.SET_ITEMS_MIN) !== -1) {
+                rule.min = self.getOwnAttribute(metaNode, CONSTANTS.SET_ITEMS_MIN);
+                has = true;
+            }
+            if (ownNames.indexOf(CONSTANTS.SET_ITEMS_MAX) !== -1) {
+                rule.max = self.getOwnAttribute(metaNode, CONSTANTS.SET_ITEMS_MAX);
+                has = true;
+            }
+
+            paths = self.getOwnMemberPaths(metaNode, CONSTANTS.SET_ITEMS);
+            for (i = 0; i < paths.length; i += 1) {
+                rule[paths[i]] = {
+                    min: self.getMemberAttribute(metaNode, CONSTANTS.SET_ITEMS, paths[i], CONSTANTS.SET_ITEMS_MIN),
+                    max: self.getMemberAttribute(metaNode, CONSTANTS.SET_ITEMS, paths[i], CONSTANTS.SET_ITEMS_MAX)
+                };
+                has = true;
+            }
+
+            return has ? rule : null;
+        }
+
         this.getValidChildrenPaths = function (node) {
             return self.getMemberPaths(getMetaChildrenNode(node), CONSTANTS.SET_ITEMS);
         };
@@ -554,6 +592,10 @@ define([
             }
 
             return null;
+        };
+
+        this.getOwnChildrenMeta = function (node) {
+            return ownRelationRule(getMetaChildrenNode(node));
         };
 
         this.setChildMeta = function (node, child, min, max) {
@@ -675,6 +717,16 @@ define([
             }
 
             return pointerMeta;
+        };
+
+        this.getOwnPointerMeta = function (node, name) {
+            var meta = getMetaNode(node);
+
+            if ((self.getOwnPointerNames(meta) || []).indexOf(name) === -1) {
+                return null;
+            }
+
+            return ownRelationRule(self.getChild(meta, CONSTANTS.META_POINTER_PREFIX + name));
         };
 
         this.getValidTargetPaths = function (node, name) {

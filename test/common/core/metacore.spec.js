@@ -326,6 +326,31 @@ describe('meta core', function () {
         }
     });
 
+    it('getOwnChildrenMeta is only rules authored on the node', function () {
+        var inst = core.createNode({parent: root, base: childNode}),
+            extra = core.createNode({parent: root, base: base}),
+            ownDef = core.getOwnChildrenMeta(childNode),
+            ownInst;
+
+        expect(ownDef.max).to.equal(10);
+        expect(ownDef[core.getPath(attrNode)]).to.be.an('object');
+        expect(core.getOwnChildrenMeta(inst)).to.equal(null);
+        expect(core.getChildrenMeta(inst)).to.not.equal(null);
+
+        core.setChildMeta(inst, extra, 1, 2);
+        ownInst = core.getOwnChildrenMeta(inst);
+        expect(ownInst.max).to.equal(undefined);
+        expect(ownInst.min).to.equal(undefined);
+        expect(ownInst[core.getPath(extra)]).to.eql({min: 1, max: 2});
+        expect(ownInst[core.getPath(attrNode)]).to.equal(undefined);
+
+        core.setChildrenMetaLimits(inst, 2, 4);
+        ownInst = core.getOwnChildrenMeta(inst);
+        expect(ownInst.min).to.equal(2);
+        expect(ownInst.max).to.equal(4);
+        expect(ownInst[core.getPath(extra)]).to.eql({min: 1, max: 2});
+    });
+
     it('checks getPointerMeta for pointer', function () {
         var path,
             pointerMeta = core.getPointerMeta(setNode, 'ptr');
@@ -340,6 +365,21 @@ describe('meta core', function () {
             expect(typeof pointerMeta[path].min).to.equal('number');
             expect(typeof pointerMeta[path].max).to.equal('number');
         }
+    });
+
+    it('getOwnPointerMeta is only rules authored on the node', function () {
+        var inst = core.createNode({parent: root, base: setNode}),
+            ownDef = core.getOwnPointerMeta(setNode, 'ptr');
+
+        expect(ownDef.min).to.equal(1);
+        expect(ownDef.max).to.equal(1);
+        expect(core.getOwnPointerMeta(inst, 'ptr')).to.equal(null);
+        expect(core.getPointerMeta(inst, 'ptr').min).to.equal(1);
+
+        core.setPointerMetaLimits(inst, 'ptr', 1, 3);
+        expect(core.getOwnPointerMeta(inst, 'ptr').min).to.equal(1);
+        expect(core.getOwnPointerMeta(inst, 'ptr').max).to.equal(3);
+        expect(core.getOwnPointerMeta(inst, 'ptr')[core.getPath(base)]).to.equal(undefined);
     });
 
     it('checks getPointerMeta for set', function () {

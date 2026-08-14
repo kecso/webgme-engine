@@ -107,9 +107,10 @@ describe('core', function () {
                 'getOwnValidAttributeNames', 'isValidAttributeValueOf', 'getValidAspectNames',
                 'getOwnValidAspectNames', 'getAspectMeta', 'getJsonMeta', 'getOwnJsonMeta',
                 'clearMetaRules', 'setAttributeMeta', 'delAttributeMeta', 'getAttributeMeta',
-                'getValidChildrenPaths', 'getChildrenMeta', 'setChildMeta', 'delChildMeta',
+                'getValidChildrenPaths', 'getOwnValidChildrenPaths', 'getChildrenMeta', 'getOwnChildrenMeta',
+                'setChildMeta', 'delChildMeta',
                 'setChildrenMetaLimits', 'setPointerMetaTarget', 'delPointerMetaTarget',
-                'setPointerMetaLimits', 'delPointerMeta', 'getPointerMeta',
+                'setPointerMetaLimits', 'delPointerMeta', 'getPointerMeta', 'getOwnPointerMeta',
                 'setAspectMetaTarget', 'delAspectMetaTarget', 'delAspectMeta', 'getBaseType',
                 'isInstanceOf', 'generateTreeDiff', 'applyTreeDiff', 'tryToConcatChanges',
                 'applyResolution', 'isAbstract', 'isConnection', 'getValidChildrenMetaNodes',
@@ -3183,6 +3184,26 @@ describe('core', function () {
         }
     });
 
+    it('should throw @getOwnValidChildrenPaths if not valid node is given', function () {
+        var myError;
+
+        try {
+            core.getOwnValidChildrenPaths('string');
+        } catch (e) {
+            myError = e;
+        } finally {
+            expect(myError.name).to.eql('CoreIllegalArgumentError');
+        }
+
+        try {
+            core.getOwnValidChildrenPaths({});
+        } catch (e) {
+            myError = e;
+        } finally {
+            expect(myError.name).to.eql('CoreIllegalArgumentError');
+        }
+    });
+
     it('should throw @getChildrenMeta if not valid node is given', function () {
         var myError;
 
@@ -3196,6 +3217,26 @@ describe('core', function () {
 
         try {
             core.getChildrenMeta({});
+        } catch (e) {
+            myError = e;
+        } finally {
+            expect(myError.name).to.eql('CoreIllegalArgumentError');
+        }
+    });
+
+    it('should throw @getOwnChildrenMeta if not valid node is given', function () {
+        var myError;
+
+        try {
+            core.getOwnChildrenMeta('string');
+        } catch (e) {
+            myError = e;
+        } finally {
+            expect(myError.name).to.eql('CoreIllegalArgumentError');
+        }
+
+        try {
+            core.getOwnChildrenMeta({});
         } catch (e) {
             myError = e;
         } finally {
@@ -3582,6 +3623,28 @@ describe('core', function () {
 
         try {
             core.getPointerMeta(rootNode, {});
+        } catch (e) {
+            myError = e;
+        } finally {
+            expect(myError.name).to.eql('CoreIllegalArgumentError');
+            myError = null;
+        }
+    });
+
+    it('should throw @getOwnPointerMeta if not valid parameters are given', function () {
+        var myError;
+
+        try {
+            core.getOwnPointerMeta('string');
+        } catch (e) {
+            myError = e;
+        } finally {
+            expect(myError.name).to.eql('CoreIllegalArgumentError');
+            myError = null;
+        }
+
+        try {
+            core.getOwnPointerMeta(rootNode, {});
         } catch (e) {
             myError = e;
         } finally {

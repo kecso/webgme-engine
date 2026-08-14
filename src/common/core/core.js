@@ -2928,6 +2928,14 @@ define([
 
         /**
          * Returns the list of absolute path of the valid children types of the node.
+         *
+         * **Use:** validation and UI that asks “which types may be contained here?” after
+         * inheritance / mixins. Paths only — no cardinality.
+         *
+         * **Not for:** “what did this node author?” — use
+         * {@link module:Core#getOwnValidChildrenPaths} (types) or
+         * {@link module:Core#getOwnChildrenMeta} (types + total/per-type cardinality).
+         *
          * @param {module:Core~Node} node - the node in question.
          *
          * @return {string[]} The function returns an array of absolute paths of the nodes that was defined as valid
@@ -2943,7 +2951,38 @@ define([
         };
 
         /**
-         * Return a JSON representation of the META rules regarding the valid children of the given node.
+         * Returns the list of absolute paths of valid children types that were specifically defined for the node.
+         *
+         * **Use:** list child types this node introduced (editor “own containment types”).
+         * Does **not** include the total children cardinality (`min`/`max` from
+         * {@link module:Core#setChildrenMetaLimits}) — that lives only on
+         * {@link module:Core#getOwnChildrenMeta}.
+         *
+         * @param {module:Core~Node} node - the node in question.
+         *
+         * @return {string[]} The function returns an array of absolute paths of the nodes that were defined as valid
+         * children specifically for the node (not inherited).
+         *
+         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+         * @throws {CoreInternalError} If some internal error took place inside the core layers.
+         */
+        this.getOwnValidChildrenPaths = function (node) {
+            ensureNode(node, 'node');
+
+            return core.getOwnValidChildrenPaths(node);
+        };
+
+        /**
+         * Effective containment META of the node (this node + inheritance + mixins).
+         *
+         * **Use:** validation — “how many children may this node have, and of which types?”
+         * `min`/`max` are the **total** children cardinality in force here; they may have been
+         * set on a base. Per-type keys are absolute paths with that type’s min/max.
+         *
+         * **Not for:** diff/merge or “what did this node define?” — a derived type that only
+         * adds a child type would still show the base’s total `min`/`max`. Use
+         * {@link module:Core#getOwnChildrenMeta}.
+         *
          * @param {module:Core~Node} node - the node in question.
          *
          * @return {module:Core~RelationRule} The function returns a detailed JSON structure that represents the META
@@ -2965,6 +3004,32 @@ define([
             ensureNode(node, 'node');
 
             return core.getChildrenMeta(node);
+        };
+
+        /**
+         * Containment META specifically authored on this node (no inheritance, no mixins).
+         *
+         * **Use:** diff/merge and editors that show local META overrides. Includes:
+         * - per-type slots (`setChildMeta`) keyed by absolute path
+         * - total children cardinality (`setChildrenMetaLimits`) as `min`/`max` when **this**
+         *   node set them
+         *
+         * Returns `null` when this node defined no containment rule (even if a base did).
+         * Limits-only (cardinality without any own child type) is a valid own rule.
+         *
+         * Same shape as {@link module:Core#getChildrenMeta}.
+         *
+         * @param {module:Core~Node} node - the node in question.
+         *
+         * @return {module:Core~RelationRule|null}
+         *
+         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+         * @throws {CoreInternalError} If some internal error took place inside the core layers.
+         */
+        this.getOwnChildrenMeta = function (node) {
+            ensureNode(node, 'node');
+
+            return core.getOwnChildrenMeta(node);
         };
 
         /**
@@ -3114,6 +3179,11 @@ define([
 
         /**
          * Return a JSON representation of the META rules regarding the given pointer/set of the given node.
+         *
+         * **Use:** validation — effective pointer/set rule after inheritance / mixins.
+         * Total `min`/`max` may come from a base. For rules authored on this node, use
+         * {@link module:Core#getOwnPointerMeta}.
+         *
          * @param {module:Core~Node} node - the node in question.
          * @param {string} name - the name of the pointer/set.
          *
@@ -3144,6 +3214,32 @@ define([
             ensureType(name, 'name', 'string');
 
             return core.getPointerMeta(node, name);
+        };
+
+        /**
+         * Pointer/set META specifically authored on this node (no inheritance, no mixins).
+         *
+         * **Use:** diff/merge and editors that show local META overrides. Includes own
+         * targets (`setPointerMetaTarget`) and total cardinality (`setPointerMetaLimits`)
+         * when **this** node set them. Returns `null` if this node did not introduce the
+         * named pointer/set.
+         *
+         * Same shape as {@link module:Core#getPointerMeta}, except missing own `min`/`max`
+         * are omitted rather than defaulted to `-1`.
+         *
+         * @param {module:Core~Node} node - the node in question.
+         * @param {string} name - the name of the pointer/set.
+         *
+         * @return {module:Core~RelationRule|null}
+         *
+         * @throws {CoreIllegalArgumentError} If some of the parameters don't match the input criteria.
+         * @throws {CoreInternalError} If some internal error took place inside the core layers.
+         */
+        this.getOwnPointerMeta = function (node, name) {
+            ensureNode(node, 'node');
+            ensureType(name, 'name', 'string');
+
+            return core.getOwnPointerMeta(node, name);
         };
 
         /**
